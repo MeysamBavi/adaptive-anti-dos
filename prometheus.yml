@@ -1,12 +1,18 @@
 global:
-  scrape_interval: 15s # By default, scrape targets every 15 seconds.
+  scrape_interval: 1s
 
 scrape_configs:
-  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
-  - job_name: 'file_server'
+  - job_name: 'file-server'
+    docker_sd_configs:
+      - host: "unix:///var/run/docker.sock"
 
-    # Override the global default and scrape targets from this job every 5 seconds.
-    scrape_interval: 1s
+    metrics_path: /metrics
+    scheme: http
 
-    static_configs:
-      - targets: ['file-server:8080']
+    relabel_configs:
+      - source_labels: [__meta_docker_container_name]
+        regex: .*file-server.*
+        action: keep
+      - source_labels: [__meta_docker_network_ip]
+        target_label: __address__
+        replacement: "$1:8080"

@@ -1,18 +1,19 @@
-version: "3.8"
 services:
   file-server:
     image: "server:0.1"
     build:
       context: ./
       dockerfile: ./server/deploy/Dockerfile
-    ports:
-      - "8080:8080"
+    deploy:
+      replicas: 2
 
   metrics:
     image: prom/prometheus:v2.53.2
+    user: "0:0"
     ports:
       - "9090:9090"
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "/var/run/docker.sock:/var/run/docker.sock"
     depends_on:
       - file-server
