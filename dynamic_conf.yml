@@ -1,0 +1,12 @@
+http:
+  middlewares:
+    fs-rate-limit:
+      rateLimit:
+        average: 1
+        burst: 1
+        period: 5
+    fs-deny-ip:
+      plugin:
+        denyip:
+          ipDenyList:
+            - 24.0.0.0/8

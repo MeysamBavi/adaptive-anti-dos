@@ -16,4 +16,6 @@ WORKDIR /app
 COPY --from=build /app/server-bin .
 COPY --from=build /app/server/assets /files
 
+EXPOSE 8080
+
 CMD ["./server-bin"]
