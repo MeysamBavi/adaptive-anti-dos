@@ -28,16 +28,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "./dynamic_conf.yml:/etc/traefik/dynamic_conf.yml"
+      - "./traefik.yml:/etc/traefik/traefik.yml"
     ports:
       - "4000:80" # Expose traffic
       - "8080:8080" # Dashboard
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedByDefault=false"
-      - "--providers.file.filename=/etc/traefik/dynamic_conf.yml"
-      - "--providers.file.watch=true"
-      - "--entryPoints.http.address=:80"
-      - "--entryPoints.http.forwardedHeaders.insecure=true"
-      - "--experimental.plugins.denyip.modulename=github.com/kevtainer/denyip"
-      - "--experimental.plugins.denyip.version=v1.0.0"

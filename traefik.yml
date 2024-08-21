@@ -1,0 +1,27 @@
+entryPoints:
+  http:
+    address: ":80"
+    forwardedHeaders:
+      insecure: true
+
+api:
+  insecure: true
+providers:
+  docker:
+    exposedByDefault: false
+  file:
+    filename: /etc/traefik/dynamic_conf.yml
+    watch: true
+
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    headerLabels:
+      ip: X-Forwarded-For
+
+experimental:
+  plugins:
+    denyip:
+      moduleName: github.com/kevtainer/denyip
+      version: v1.0.0

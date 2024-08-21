@@ -1,14 +1,10 @@
 global:
-  scrape_interval: 1s
+  scrape_interval: 2s
 
 scrape_configs:
   - job_name: 'file-server'
     docker_sd_configs:
       - host: "unix:///var/run/docker.sock"
-
-    metrics_path: /metrics
-    scheme: http
-
     relabel_configs:
       - source_labels: [__meta_docker_container_name]
         regex: .*file-server.*
@@ -16,3 +12,8 @@ scrape_configs:
       - source_labels: [__meta_docker_network_ip]
         target_label: __address__
         replacement: "$1:8080"
+
+  - job_name: 'gateway'
+    static_configs:
+      - targets:
+          - "gateway:8080"
