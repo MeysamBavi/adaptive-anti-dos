@@ -22,10 +22,16 @@ func NewModule(k knowledge.Base) Module {
 	}
 }
 
-func (i impl) Start(actions <-chan AdaptationAction) <-chan Executable {
+func (i *impl) Start(actions <-chan AdaptationAction) <-chan Executable {
 	executables := make(chan Executable)
+	go i.planAndExecute(actions)
 	return executables
 }
 
-func (i impl) Stop() {
+func (i *impl) Stop() {
+}
+
+func (i *impl) planAndExecute(actions <-chan AdaptationAction) {
+	for range actions {
+	}
 }

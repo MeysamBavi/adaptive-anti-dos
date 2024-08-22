@@ -8,6 +8,7 @@ import (
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 	"log"
+	"math"
 	"sync"
 	"time"
 )
@@ -41,6 +42,7 @@ type impl struct {
 type Config struct {
 	MetricsPeriod            time.Duration
 	ReportPeriod             time.Duration
+	CpuQuota                 float64
 	AttackerPercentThreshold float64
 }
 
@@ -118,7 +120,10 @@ func (i *impl) monitor(ctx context.Context, reports chan<- Report) {
 func (i *impl) getAverageCpuUtil(now time.Time) (float64, error) {
 	query := fmt.Sprintf(`avg(rate(process_cpu_seconds_total{job="file-server"}[%s]))`, i.cfg.MetricsPeriod)
 	value, err := singleValue(i.queryPrometheus(query, now))
-	return value, err
+	if value == 0 || value == math.NaN() {
+		value = i.cfg.CpuQuota
+	}
+	return value / i.cfg.CpuQuota, err
 }
 
 func (i *impl) getRequestsReport(now time.Time) (Requests, error) {
@@ -139,6 +144,9 @@ func (i *impl) getRequestsReport(now time.Time) (Requests, error) {
 
 	query3 := fmt.Sprintf(`sum(rate(traefik_entrypoint_request_duration_seconds_bucket{code!="403", code!="429", le="1.2"}[%s])) / sum(rate(traefik_entrypoint_request_duration_seconds_count{code!="403", code!="429"}[%s]))`, i.cfg.MetricsPeriod, i.cfg.MetricsPeriod)
 	result.GoodLatencyPercent, err = singleValue(i.queryPrometheus(query3, now))
+	if result.GoodLatencyPercent == 0 || math.IsNaN(result.GoodLatencyPercent) {
+		result.GoodLatencyPercent = 1
+	}
 	if err != nil {
 		return result, err
 	}

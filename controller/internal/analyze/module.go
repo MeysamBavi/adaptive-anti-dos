@@ -4,6 +4,9 @@ import (
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/knowledge"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/monitor"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/plan"
+	"log"
+	"math"
+	"sync"
 )
 
 type Module interface {
@@ -13,24 +16,122 @@ type Module interface {
 
 type impl struct {
 	knowledgeBase knowledge.Base
+	wg            *sync.WaitGroup
+	cfg           Config
 }
 
-func NewModule(k knowledge.Base) Module {
+type Config struct {
+	TargetUtilization  float64
+	MaxReplicas        int
+	MinReplicas        int
+	LimitedRequestCost float64
+	ReplicaCost        float64
+	MinLimit           float64
+}
+
+func NewModule(cfg Config, k knowledge.Base) Module {
 	return &impl{
+		cfg:           cfg,
 		knowledgeBase: k,
 	}
 }
 
 func (i *impl) Start(reports <-chan monitor.Report) <-chan plan.AdaptationAction {
 	actions := make(chan plan.AdaptationAction)
-	go i.analyze(reports)
+	i.wg = &sync.WaitGroup{}
+
+	i.wg.Add(1)
+	go i.analyze(reports, actions)
+
 	return actions
 }
 
 func (i *impl) Stop() {
+	i.wg.Wait()
 }
 
-func (i *impl) analyze(reports <-chan monitor.Report) {
-	for range reports {
+func (i *impl) analyze(reports <-chan monitor.Report, actions chan<- plan.AdaptationAction) {
+	defer i.wg.Done()
+	defer close(actions)
+
+	for r := range reports {
+		for _, a := range i.getActions(r) {
+			actions <- a
+		}
 	}
+}
+
+func (i *impl) getActions(r monitor.Report) []plan.AdaptationAction {
+	var actions []plan.AdaptationAction
+	actions = append(actions, i.getBanAdaptationActions(r)...)
+	actions = append(actions, i.getResourceAdaptationActions(r)...)
+	return actions
+}
+
+func (i *impl) getBanAdaptationActions(r monitor.Report) (result []plan.AdaptationAction) {
+	for ip, _ := range r.PotentialAttackerIPs {
+		log.Println("banning ip", ip)
+		result = append(result, plan.BanIP(ip))
+	}
+	return
+}
+
+func (i *impl) getResourceAdaptationActions(r monitor.Report) []plan.AdaptationAction {
+	replicas := float64(i.knowledgeBase.CurrentReplicas())
+	xUpper := float64(i.cfg.MaxReplicas) / replicas
+	xLower := float64(i.cfg.MinReplicas) / replicas
+	normalizeX := func(x float64) float64 {
+		if x >= xUpper {
+			x = xUpper
+			x *= math.Floor(x*replicas) / (x * replicas)
+		} else if x <= xLower {
+			x = xLower
+			x *= math.Ceil(x*replicas) / (x * replicas)
+		} else {
+			x *= math.RoundToEven(x*replicas) / (x * replicas)
+		}
+		return x
+	}
+
+	k := math.Sqrt((i.cfg.TargetUtilization / r.AverageCpuUtilization) * r.Requests.GoodLatencyPercent)
+
+	if r.Requests.TotalRate-r.Requests.NonLimitedRate < 0.1 ||
+		math.IsNaN(r.Requests.LimitedRatesStdDev) || r.Requests.LimitedRatesStdDev > 4 {
+		y := 1.0
+		return i.adaptResources(y, normalizeX(y/k))
+	}
+
+	xUpper = min(xUpper, r.Requests.TotalRate/(r.Requests.NonLimitedRate*k))
+	xLower = max(xLower, i.cfg.MinLimit/(i.knowledgeBase.CurrentLimit()*k))
+
+	slope := -k*r.Requests.NonLimitedRate*i.cfg.LimitedRequestCost + replicas*i.cfg.ReplicaCost
+	var x float64
+	if slope > 0 {
+		x = xLower
+	} else {
+		x = xUpper
+	}
+	x = normalizeX(x)
+	y := k * x
+
+	return i.adaptResources(y, x)
+}
+
+func (i *impl) adaptResources(y float64, x float64) (result []plan.AdaptationAction) {
+	newReplicas := float64(i.knowledgeBase.CurrentReplicas()) * x
+	if math.IsNaN(newReplicas) {
+		log.Println("newReplicas is NaN")
+		return nil
+	}
+	result = append(result, plan.AdaptReplicas(int(newReplicas)))
+
+	if math.Abs(y-1) > 0.0001 {
+		newLimit := i.knowledgeBase.CurrentLimit() * y
+		result = append(result, plan.AdaptLimit(newLimit))
+		log.Printf("setting new replicas = %d, new limit = %f", int(newReplicas), newLimit)
+	} else {
+		log.Printf("setting only new replicas = %d", int(newReplicas))
+	}
+
+	return
 }

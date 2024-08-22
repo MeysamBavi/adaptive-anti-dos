@@ -19,11 +19,19 @@ type Config struct {
 func RunControlLoop(config Config) {
 	k := knowledge.NewInMemoryBase()
 	m := monitor.NewModule(monitor.Config{
-		MetricsPeriod:            12 * time.Second,
-		ReportPeriod:             4 * time.Second,
+		MetricsPeriod:            15 * time.Second,
+		ReportPeriod:             6 * time.Second,
+		CpuQuota:                 0.01,
 		AttackerPercentThreshold: 0.25,
 	}, k)
-	a := analyze.NewModule(k)
+	a := analyze.NewModule(analyze.Config{
+		TargetUtilization:  0.7,
+		MaxReplicas:        4,
+		MinReplicas:        1,
+		LimitedRequestCost: 50,
+		ReplicaCost:        200,
+		MinLimit:           5,
+	}, k)
 	p := plan.NewModule(k)
 	e := execute.NewModule(k)
 	run(m, a, p, e)
