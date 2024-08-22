@@ -1,0 +1,7 @@
+users:
+  80.0.0.1:
+    start: 0s
+    rps: 10
+  80.0.0.2:
+    start: 0s
+    rps: 15

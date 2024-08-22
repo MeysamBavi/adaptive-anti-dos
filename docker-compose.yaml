@@ -6,6 +6,7 @@ services:
       dockerfile: ./server/deploy/Dockerfile
     deploy:
       replicas: 2
+    cpus: "0.01"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.file-server.rule=PathPrefix(`/`)"

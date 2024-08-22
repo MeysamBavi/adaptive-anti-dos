@@ -2,9 +2,12 @@ http:
   middlewares:
     fs-rate-limit:
       rateLimit:
-        average: 1
-        burst: 1
-        period: 5
+        average: 7
+        burst: 7
+        period: 1
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
     fs-deny-ip:
       plugin:
         denyip:
