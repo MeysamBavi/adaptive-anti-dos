@@ -131,19 +131,24 @@ func (i *impl) getResourceAdaptationActions(r monitor.Report) []plan.AdaptationA
 }
 
 func (i *impl) adaptResources(y float64, x float64) (result []plan.AdaptationAction) {
-	newReplicas := float64(i.knowledgeBase.CurrentReplicas()) * x
-	if math.IsNaN(newReplicas) {
+	oldReplicas := i.knowledgeBase.CurrentReplicas()
+	nr := float64(oldReplicas) * x
+	if math.IsNaN(nr) {
 		log.Println("newReplicas is NaN")
 		return nil
 	}
-	result = append(result, plan.AdaptReplicas(int(newReplicas)))
+	newReplicas := int(nr)
+	if newReplicas == oldReplicas {
+		log.Println("old replicas is equal to new replicas:", newReplicas)
+	} else {
+		result = append(result, plan.AdaptReplicas(newReplicas))
+		log.Printf("setting new replicas = %d", newReplicas)
+	}
 
 	if math.Abs(y-1) > 0.0001 {
 		newLimit := int(math.Ceil(float64(i.knowledgeBase.CurrentLimit()) * y))
 		result = append(result, plan.AdaptLimit(newLimit))
-		log.Printf("setting new replicas = %d, new limit = %d", int(newReplicas), newLimit)
-	} else {
-		log.Printf("setting only new replicas = %d", int(newReplicas))
+		log.Printf("setting new limit = %d", newReplicas)
 	}
 
 	return
