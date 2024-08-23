@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"sync"
+	"time"
 )
 
 type Module interface {
@@ -27,6 +28,8 @@ type Config struct {
 	LimitedRequestCost float64
 	ReplicaCost        float64
 	MinLimit           float64
+	UnbanCheckPeriod   time.Duration
+	UnbanAfter         time.Duration
 }
 
 func NewModule(cfg Config, k knowledge.Base) Module {
@@ -41,7 +44,8 @@ func (i *impl) Start(reports <-chan monitor.Report) <-chan plan.AdaptationAction
 	i.wg = &sync.WaitGroup{}
 
 	i.wg.Add(1)
-	go i.analyze(reports, actions)
+	unbans := i.startUnbanner()
+	go i.analyze(reports, unbans, actions)
 
 	return actions
 }
@@ -50,13 +54,22 @@ func (i *impl) Stop() {
 	i.wg.Wait()
 }
 
-func (i *impl) analyze(reports <-chan monitor.Report, actions chan<- plan.AdaptationAction) {
+func (i *impl) analyze(reports <-chan monitor.Report, unbans <-chan string, actions chan<- plan.AdaptationAction) {
 	defer i.wg.Done()
 	defer close(actions)
 
-	for r := range reports {
-		for _, a := range i.getActions(r) {
-			actions <- a
+	for {
+		select {
+		case r, ok := <-reports:
+			if !ok {
+				return
+			}
+			for _, a := range i.getActions(r) {
+				actions <- a
+			}
+		case ip := <-unbans:
+			log.Println("unbanning", ip)
+			actions <- plan.UnbanIP(ip)
 		}
 	}
 }
@@ -102,7 +115,7 @@ func (i *impl) getResourceAdaptationActions(r monitor.Report) []plan.AdaptationA
 	}
 
 	xUpper = min(xUpper, r.Requests.TotalRate/(r.Requests.NonLimitedRate*k))
-	xLower = max(xLower, i.cfg.MinLimit/(i.knowledgeBase.CurrentLimit()*k))
+	xLower = max(xLower, i.cfg.MinLimit/(float64(i.knowledgeBase.CurrentLimit())*k))
 
 	slope := -k*r.Requests.NonLimitedRate*i.cfg.LimitedRequestCost + replicas*i.cfg.ReplicaCost
 	var x float64
@@ -126,7 +139,7 @@ func (i *impl) adaptResources(y float64, x float64) (result []plan.AdaptationAct
 	result = append(result, plan.AdaptReplicas(int(newReplicas)))
 
 	if math.Abs(y-1) > 0.0001 {
-		newLimit := int(math.Ceil(i.knowledgeBase.CurrentLimit() * y))
+		newLimit := int(math.Ceil(float64(i.knowledgeBase.CurrentLimit()) * y))
 		result = append(result, plan.AdaptLimit(newLimit))
 		log.Printf("setting new replicas = %d, new limit = %d", int(newReplicas), newLimit)
 	} else {
@@ -134,4 +147,22 @@ func (i *impl) adaptResources(y float64, x float64) (result []plan.AdaptationAct
 	}
 
 	return
+}
+
+func (i *impl) startUnbanner() <-chan string {
+	ch := make(chan string)
+	go func() {
+		for {
+			time.Sleep(i.cfg.UnbanCheckPeriod)
+			ips, banTime := i.knowledgeBase.CurrentBannedIPs()
+			if len(ips) == 0 || banTime.IsZero() || time.Since(banTime) < i.cfg.UnbanAfter {
+				continue
+			}
+			for _, ip := range ips {
+				ch <- ip
+			}
+		}
+	}()
+
+	return ch
 }

@@ -28,7 +28,7 @@ type impl struct {
 	knowledgeBase knowledge.Base
 	dockerClient  *client.Client
 	limit         atomic.Int32
-	bannedIPs     sync.Map
+	banOrUnban    *sync.Map
 }
 
 type Config struct {
@@ -44,12 +44,13 @@ func NewModule(config Config, k knowledge.Base) Module {
 	i := &impl{
 		knowledgeBase: k,
 		dockerClient:  dockerClient,
+		banOrUnban:    &sync.Map{},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = i.ScaleService(ctx, config.InitialReplicas)
 	if err != nil {
-		//panic(fmt.Errorf("failed to set initial replicas: %w", err))
+		panic(fmt.Errorf("failed to set initial replicas: %w", err))
 	}
 	i.SetRateLimit(config.InitialLimit)
 	i.knowledgeBase.SetLimit(config.InitialLimit)
@@ -108,20 +109,32 @@ func (i *impl) SetRateLimit(limit int) {
 }
 
 func (i *impl) BanIP(ip string) {
-	i.bannedIPs.Store(ip, struct{}{})
+	i.banOrUnban.Store(ip, true)
 }
 
 func (i *impl) UnbanIP(ip string) {
-	i.bannedIPs.Delete(ip)
+	i.banOrUnban.Store(ip, false)
 }
 
 func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 	limit := i.limit.Load()
-	bannedIPs := make([]string, 0)
-	i.bannedIPs.Range(func(ip, _ any) bool {
-		bannedIPs = append(bannedIPs, ip.(string))
+
+	oldBannedIPs, _ := i.knowledgeBase.CurrentBannedIPs()
+	for _, oldBanned := range oldBannedIPs {
+		_, ok := i.banOrUnban.Load(oldBanned)
+		if !ok {
+			i.banOrUnban.Store(oldBanned, true)
+		}
+	}
+	newBannedIPs := make([]string, 0, len(oldBannedIPs))
+	i.banOrUnban.Range(func(ip, ban any) bool {
+		if ban.(bool) {
+			newBannedIPs = append(newBannedIPs, ip.(string))
+		}
+		i.banOrUnban.Delete(ip)
 		return true
 	})
+
 	response := map[string]any{
 		"http": map[string]any{
 			"middlewares": map[string]any{
@@ -140,7 +153,7 @@ func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 				"fs-deny-ip": map[string]any{
 					"plugin": map[string]any{
 						"denyip": map[string]any{
-							"ipDenyList": bannedIPs,
+							"ipDenyList": newBannedIPs,
 						},
 					},
 				},
@@ -154,7 +167,7 @@ func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	i.knowledgeBase.SetLimit(int(limit))
-	i.knowledgeBase.SetBannedIPs(bannedIPs)
+	i.knowledgeBase.SetBannedIPs(newBannedIPs)
 	log.Printf("succesfully set limit: %v", limit)
-	log.Printf("succesfully banned IPs: %v", bannedIPs)
+	log.Printf("succesfully set banned IPs: %v", newBannedIPs)
 }

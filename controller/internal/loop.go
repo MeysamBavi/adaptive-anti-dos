@@ -31,9 +31,11 @@ func RunControlLoop(config Config) {
 		LimitedRequestCost: 50,
 		ReplicaCost:        200,
 		MinLimit:           5,
+		UnbanCheckPeriod:   10 * time.Second,
+		UnbanAfter:         time.Minute,
 	}, k)
 	e := execute.NewModule(execute.Config{
-		InitialLimit:    10,
+		InitialLimit:    50,
 		InitialReplicas: 2,
 	}, k)
 	p := plan.NewModule(plan.Config{

@@ -1,6 +1,9 @@
 package plan
 
-import "sync"
+import (
+	"net"
+	"sync"
+)
 
 type AdaptationAction func(*changes)
 
@@ -24,7 +27,9 @@ func BanIP(ip string) AdaptationAction {
 	return func(c *changes) {
 		c.lock.Lock()
 		defer c.lock.Unlock()
-		c.BanOrUnban[ip] = true
+		if v := net.ParseIP(ip); v != nil {
+			c.BanOrUnban[v.String()] = true
+		}
 	}
 }
 
@@ -32,7 +37,9 @@ func UnbanIP(ip string) AdaptationAction {
 	return func(c *changes) {
 		c.lock.Lock()
 		defer c.lock.Unlock()
-		c.BanOrUnban[ip] = false
+		if v := net.ParseIP(ip); v != nil {
+			c.BanOrUnban[v.String()] = false
+		}
 	}
 }
 
