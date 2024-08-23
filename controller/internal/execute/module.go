@@ -148,19 +148,17 @@ func (i *impl) UnbanIP(ip string) {
 func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 	limit := i.limit.Load()
 
-	oldBannedIPs, _ := i.knowledgeBase.CurrentBannedIPs()
-	for _, oldBanned := range oldBannedIPs {
+	i.knowledgeBase.RangeBannedIPs(func(oldBanned string, _ time.Time) {
 		_, ok := i.banOrUnban.Load(oldBanned)
 		if !ok {
 			i.banOrUnban.Store(oldBanned, true)
 		}
-	}
-	newBannedIPs := make([]string, 0, len(oldBannedIPs))
+	})
+	newBannedIPs := make([]string, 0)
 	i.banOrUnban.Range(func(ip, ban any) bool {
 		if ban.(bool) {
 			newBannedIPs = append(newBannedIPs, ip.(string))
 		}
-		i.banOrUnban.Delete(ip)
 		return true
 	})
 
@@ -205,7 +203,14 @@ func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	i.knowledgeBase.SetLimit(int(limit))
-	i.knowledgeBase.SetBannedIPs(newBannedIPs)
+	i.banOrUnban.Range(func(ip, value any) bool {
+		if value.(bool) {
+			i.knowledgeBase.BanIP(ip.(string))
+		} else {
+			i.knowledgeBase.UnbanIP(ip.(string))
+		}
+		return true
+	})
 	log.Printf("succesfully set limit: %v", limit)
 	log.Printf("succesfully set banned IPs: %v", newBannedIPs)
 }

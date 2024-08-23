@@ -159,14 +159,11 @@ func (i *impl) startUnbanner() <-chan string {
 	go func() {
 		for {
 			time.Sleep(i.cfg.UnbanCheckPeriod)
-			ips, banTime := i.knowledgeBase.CurrentBannedIPs()
-			if banTime.IsZero() || time.Since(banTime) < i.cfg.UnbanAfter {
-				log.Println("no unban because banTime is", banTime)
-				continue
-			}
-			for _, ip := range ips {
-				ch <- ip
-			}
+			i.knowledgeBase.RangeBannedIPs(func(ip string, t time.Time) {
+				if time.Since(t) >= i.cfg.UnbanAfter {
+					ch <- ip
+				}
+			})
 		}
 	}()
 

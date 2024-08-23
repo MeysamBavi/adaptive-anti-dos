@@ -15,8 +15,9 @@ type Base interface {
 	SetPendingReplicaChange(bool)
 	HasPendingLimitChange() bool
 	HasPendingReplicaChange() bool
-	CurrentBannedIPs() ([]string, time.Time)
-	SetBannedIPs(ips []string)
+	RangeBannedIPs(func(string, time.Time))
+	BanIP(ip string)
+	UnbanIP(ip string)
 }
 
 type impl struct {
@@ -24,9 +25,7 @@ type impl struct {
 	replicas             atomic.Int32
 	pendingReplicaChange atomic.Bool
 	pendingLimitChange   atomic.Bool
-	bannedIPsLock        sync.RWMutex
-	bannedIPs            []string
-	banTime              atomic.Int64
+	bannedIPs            sync.Map
 }
 
 func NewInMemoryBase() Base {
@@ -67,15 +66,17 @@ func (i *impl) HasPendingLimitChange() bool {
 	return i.pendingLimitChange.Load()
 }
 
-func (i *impl) CurrentBannedIPs() ([]string, time.Time) {
-	i.bannedIPsLock.RLock()
-	defer i.bannedIPsLock.RUnlock()
-	return i.bannedIPs, time.Unix(i.banTime.Load(), 0)
+func (i *impl) RangeBannedIPs(f func(string, time.Time)) {
+	i.bannedIPs.Range(func(k, v any) bool {
+		f(k.(string), v.(time.Time))
+		return true
+	})
 }
 
-func (i *impl) SetBannedIPs(ips []string) {
-	i.bannedIPsLock.Lock()
-	defer i.bannedIPsLock.Unlock()
-	i.bannedIPs = ips
-	i.banTime.Store(time.Now().Unix())
+func (i *impl) BanIP(ip string) {
+	i.bannedIPs.LoadOrStore(ip, time.Now())
+}
+
+func (i *impl) UnbanIP(ip string) {
+	i.bannedIPs.Delete(ip)
 }
