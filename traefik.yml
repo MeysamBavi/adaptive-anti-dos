@@ -12,6 +12,9 @@ providers:
   file:
     filename: /etc/traefik/dynamic_conf.yml
     watch: true
+  http:
+    endpoint: http://controller:6041/gateway
+
 
 metrics:
   prometheus:

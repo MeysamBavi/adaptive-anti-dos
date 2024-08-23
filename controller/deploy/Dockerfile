@@ -15,6 +15,6 @@ WORKDIR /app
 
 COPY --from=build /app/controller-bin .
 
-EXPOSE 8080
+EXPOSE 6041
 
 CMD ["./controller-bin"]

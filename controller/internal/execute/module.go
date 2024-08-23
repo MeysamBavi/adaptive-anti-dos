@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/knowledge"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
 	"log"
 	"net/http"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -72,46 +74,48 @@ const (
 	serviceName = "file-server"
 )
 
+func (i *impl) findService(ctx context.Context) (*swarm.Service, error) {
+	services, err := i.dockerClient.ServiceList(ctx, types.ServiceListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	idx := slices.IndexFunc(services, func(s swarm.Service) bool {
+		return strings.Contains(s.Spec.Name, serviceName)
+	})
+
+	if idx < 0 {
+		return nil, fmt.Errorf("service %s not found", serviceName)
+	}
+	service := services[idx]
+	spec := service.Spec
+	if spec.Mode.Replicated == nil || spec.Mode.Replicated.Replicas == nil {
+		return nil, fmt.Errorf("replicated service %s not found", serviceName)
+	}
+	return &service, nil
+}
+
 func (i *impl) refreshReplicas() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	services, err := i.dockerClient.ServiceList(ctx, types.ServiceListOptions{
-		Filters: filters.NewArgs(filters.Arg("name", serviceName)),
-	})
+	s, err := i.findService(ctx)
 	if err != nil {
 		return err
 	}
 
-	if len(services) == 0 {
-		return fmt.Errorf("service %s not found", serviceName)
-	}
-	spec := services[0].Spec
-	if spec.Mode.Replicated == nil || spec.Mode.Replicated.Replicas == nil {
-		return fmt.Errorf("replicated service %s not found", serviceName)
-	}
-
-	r := int(*spec.Mode.Replicated.Replicas)
+	r := int(*s.Spec.Mode.Replicated.Replicas)
 	i.knowledgeBase.SetReplicas(r)
 	log.Println("successfully refreshed replicas:", r)
 	return nil
 }
 
 func (i *impl) ScaleService(ctx context.Context, replicas int) error {
-	// Get the service details
-	services, err := i.dockerClient.ServiceList(ctx, types.ServiceListOptions{
-		Filters: filters.NewArgs(filters.Arg("name", serviceName)),
-	})
+	service, err := i.findService(ctx)
 	if err != nil {
 		return err
 	}
 
-	if len(services) == 0 {
-		return fmt.Errorf("service %s not found", serviceName)
-	}
-
 	// Update the service with the new replica count
-	service := services[0]
 	serviceSpec := service.Spec
 	if serviceSpec.Mode.Replicated == nil {
 		return fmt.Errorf("replicated service %s not found", serviceName)

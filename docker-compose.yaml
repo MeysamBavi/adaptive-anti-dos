@@ -6,11 +6,26 @@ services:
       dockerfile: ./server/deploy/Dockerfile
     deploy:
       replicas: 2
-    cpus: "0.01"
+      resources:
+        limits:
+          cpus: "0.01"
+          memory: "300M"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.file-server.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.file-server.middlewares=fs-deny-ip@file,fs-rate-limit@file"
+      - "traefik.http.routers.file-server.middlewares=fs-deny-ip@http,fs-rate-limit@http"
+
+  controller:
+    image: "controller:0.1"
+    build:
+      context: ./
+      dockerfile: ./controller/deploy/Dockerfile
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "6041:6041"
 
   metrics:
     image: prom/prometheus:v2.53.2
@@ -33,3 +48,5 @@ services:
     ports:
       - "4000:80" # Expose traffic
       - "8080:8080" # Dashboard
+    depends_on:
+      - controller

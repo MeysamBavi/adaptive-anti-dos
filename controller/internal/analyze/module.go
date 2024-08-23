@@ -133,7 +133,7 @@ func (i *impl) getResourceAdaptationActions(r monitor.Report) []plan.AdaptationA
 func (i *impl) adaptResources(y float64, x float64) (result []plan.AdaptationAction) {
 	oldReplicas := i.knowledgeBase.CurrentReplicas()
 	nr := float64(oldReplicas) * x
-	if math.IsNaN(nr) {
+	if math.IsNaN(nr) || int(nr) == 0 {
 		log.Println("newReplicas is NaN")
 		return nil
 	}
