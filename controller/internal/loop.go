@@ -7,40 +7,20 @@ import (
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/knowledge"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/monitor"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/plan"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
-type Config struct {
-}
+func RunControlLoop(config *Config) {
+	log.Printf("Config: %+v\n", *config)
 
-func RunControlLoop(config Config) {
 	k := knowledge.NewInMemoryBase()
-	m := monitor.NewModule(monitor.Config{
-		MetricsPeriod:            15 * time.Second,
-		ReportPeriod:             6 * time.Second,
-		CpuQuota:                 0.01,
-		AttackerPercentThreshold: 0.25,
-	}, k)
-	a := analyze.NewModule(analyze.Config{
-		TargetUtilization:  0.7,
-		MaxReplicas:        4,
-		MinReplicas:        1,
-		LimitedRequestCost: 50,
-		ReplicaCost:        200,
-		MinLimit:           5,
-		UnbanCheckPeriod:   10 * time.Second,
-		UnbanAfter:         time.Minute,
-	}, k)
-	e := execute.NewModule(execute.Config{
-		InitialLimit: 50,
-	}, k)
-	p := plan.NewModule(plan.Config{
-		MergeTimeout:     3 * time.Second,
-		ExecutionTimeout: 10 * time.Second,
-	}, k, e)
+	m := monitor.NewModule(config.Monitor, k)
+	a := analyze.NewModule(config.Analyze, k)
+	e := execute.NewModule(config.Execute, k)
+	p := plan.NewModule(config.Plan, k, e)
 	run(m, a, p, e)
 }
 

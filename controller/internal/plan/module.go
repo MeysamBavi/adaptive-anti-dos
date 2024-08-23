@@ -23,8 +23,8 @@ type impl struct {
 }
 
 type Config struct {
-	MergeTimeout     time.Duration
-	ExecutionTimeout time.Duration
+	MergeTimeout     time.Duration `config:"merge_timeout"`
+	ExecutionTimeout time.Duration `config:"execution_timeout"`
 }
 
 func NewModule(cfg Config, k knowledge.Base, e execute.Module) Module {

@@ -5,5 +5,6 @@ import (
 )
 
 func main() {
-	internal.RunControlLoop(internal.Config{})
+	cfg := internal.LoadConfig()
+	internal.RunControlLoop(cfg)
 }

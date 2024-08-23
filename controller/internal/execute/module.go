@@ -34,7 +34,7 @@ type impl struct {
 }
 
 type Config struct {
-	InitialLimit int
+	InitialLimit int `config:"initial_limit"`
 }
 
 func NewModule(config Config, k knowledge.Base) Module {
@@ -164,6 +164,11 @@ func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 		return true
 	})
 
+	empty := false
+	if len(newBannedIPs) == 0 {
+		newBannedIPs = append(newBannedIPs, "11.0.0.0")
+		empty = true
+	}
 	response := map[string]any{
 		"http": map[string]any{
 			"middlewares": map[string]any{
@@ -189,6 +194,10 @@ func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 			},
 		},
 	}
+	if empty {
+		newBannedIPs = nil
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {

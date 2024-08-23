@@ -40,15 +40,16 @@ type impl struct {
 }
 
 type Config struct {
-	MetricsPeriod            time.Duration
-	ReportPeriod             time.Duration
-	CpuQuota                 float64
-	AttackerPercentThreshold float64
+	MetricsAddress           string        `config:"metrics_address"`
+	MetricsPeriod            time.Duration `config:"metrics_period"`
+	ReportPeriod             time.Duration `config:"report_period"`
+	CpuQuota                 float64       `config:"cpu_quota"`
+	AttackerPercentThreshold float64       `config:"attacker_percent_threshold"`
 }
 
 func NewModule(cfg Config, k knowledge.Base) Module {
 	client, err := api.NewClient(api.Config{
-		Address: "http://localhost:9090",
+		Address: cfg.MetricsAddress,
 	})
 	if err != nil {
 		panic(err)

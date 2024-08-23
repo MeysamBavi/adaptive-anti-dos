@@ -22,14 +22,14 @@ type impl struct {
 }
 
 type Config struct {
-	TargetUtilization  float64
-	MaxReplicas        int
-	MinReplicas        int
-	LimitedRequestCost float64
-	ReplicaCost        float64
-	MinLimit           float64
-	UnbanCheckPeriod   time.Duration
-	UnbanAfter         time.Duration
+	TargetUtilization  float64       `config:"target_utilization"`
+	MaxReplicas        int           `config:"max_replicas"`
+	MinReplicas        int           `config:"min_replicas"`
+	LimitedRequestCost float64       `config:"limited_request_cost"`
+	ReplicaCost        float64       `config:"replica_cost"`
+	MinLimit           float64       `config:"min_limit"`
+	UnbanCheckPeriod   time.Duration `config:"unban_check_period"`
+	UnbanAfter         time.Duration `config:"unban_after"`
 }
 
 func NewModule(cfg Config, k knowledge.Base) Module {
@@ -148,7 +148,7 @@ func (i *impl) adaptResources(y float64, x float64) (result []plan.AdaptationAct
 	if math.Abs(y-1) > 0.0001 {
 		newLimit := int(math.Ceil(float64(i.knowledgeBase.CurrentLimit()) * y))
 		result = append(result, plan.AdaptLimit(newLimit))
-		log.Printf("setting new limit = %d", newReplicas)
+		log.Printf("setting new limit = %d", newLimit)
 	}
 
 	return
@@ -160,7 +160,8 @@ func (i *impl) startUnbanner() <-chan string {
 		for {
 			time.Sleep(i.cfg.UnbanCheckPeriod)
 			ips, banTime := i.knowledgeBase.CurrentBannedIPs()
-			if len(ips) == 0 || banTime.IsZero() || time.Since(banTime) < i.cfg.UnbanAfter {
+			if banTime.IsZero() || time.Since(banTime) < i.cfg.UnbanAfter {
+				log.Println("no unban because banTime is", banTime)
 				continue
 			}
 			for _, ip := range ips {

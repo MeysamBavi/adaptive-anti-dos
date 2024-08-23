@@ -7,7 +7,7 @@ entryPoints:
 api:
   insecure: true
 providers:
-  docker:
+  swarm:
     exposedByDefault: false
   file:
     filename: /etc/traefik/dynamic_conf.yml

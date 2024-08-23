@@ -53,14 +53,22 @@ func applyLoad(ip string, user User) {
 				return
 			}
 			req.Header.Add("X-Forwarded-For", ip)
+			start := time.Now()
 			res, err := client.Do(req)
 			if err != nil {
 				log.Println("failed to do request", err)
 				return
 			}
+			if res.StatusCode != http.StatusOK {
+				log.Println("bad status code", res.StatusCode, ip)
+			}
 			_, err = io.Copy(io.Discard, res.Body)
 			if err != nil {
 				log.Println("failed to read body", err)
+			}
+			d := time.Since(start)
+			if d > 1200*time.Millisecond {
+				log.Println("took", d)
 			}
 			err = res.Body.Close()
 			if err != nil {

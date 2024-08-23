@@ -1,39 +1,41 @@
 services:
   file-server:
     image: "server:0.1"
-    build:
-      context: ./
-      dockerfile: ./server/deploy/Dockerfile
     deploy:
       replicas: 2
       resources:
         limits:
           cpus: "0.01"
           memory: "300M"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.file-server.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.file-server.middlewares=fs-deny-ip@http,fs-rate-limit@http"
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.file-server.rule=PathPrefix(`/`)"
+        - "traefik.http.services.file-server.loadbalancer.server.port=8080"
+        - "traefik.http.routers.file-server.middlewares=fs-deny-ip@http,fs-rate-limit@http"
 
   controller:
     image: "controller:0.1"
-    build:
-      context: ./
-      dockerfile: ./controller/deploy/Dockerfile
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
+      - AAD__MONITOR__METRICS_ADDRESS=http://metrics:9090
+      - AAD__MONITOR__CPU_QUOTA=0.01
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./config/controller.yaml:/etc/config.yaml"
     ports:
-      - "6041:6041"
+      - target: 6041
+        published: 6041
+        mode: host
 
   metrics:
     image: prom/prometheus:v2.53.2
     user: "0:0"
     ports:
-      - "9090:9090"
+      - target: 9090
+        published: 9090
+        mode: host
     volumes:
-      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "./config/prometheus.yml:/etc/prometheus/prometheus.yml"
       - "/var/run/docker.sock:/var/run/docker.sock"
     depends_on:
       - file-server
@@ -43,10 +45,14 @@ services:
     image: traefik:v3.1
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "./dynamic_conf.yml:/etc/traefik/dynamic_conf.yml"
-      - "./traefik.yml:/etc/traefik/traefik.yml"
+      - "./config/dynamic_conf.yml:/etc/traefik/dynamic_conf.yml"
+      - "./config/traefik.yml:/etc/traefik/traefik.yml"
     ports:
-      - "4000:80" # Expose traffic
-      - "8080:8080" # Dashboard
+      - target: 80
+        published: 4000
+        mode: host
+      - target: 8080
+        published: 8080
+        mode: host
     depends_on:
       - controller
