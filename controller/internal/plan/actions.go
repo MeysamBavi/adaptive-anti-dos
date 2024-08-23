@@ -4,7 +4,7 @@ import "sync"
 
 type AdaptationAction func(*changes)
 
-func AdaptLimit(newLimit float64) AdaptationAction {
+func AdaptLimit(newLimit int) AdaptationAction {
 	return func(c *changes) {
 		c.lock.Lock()
 		defer c.lock.Unlock()
@@ -24,16 +24,21 @@ func BanIP(ip string) AdaptationAction {
 	return func(c *changes) {
 		c.lock.Lock()
 		defer c.lock.Unlock()
-		if c.BannedIPs == nil {
-			c.BannedIPs = make(map[string]struct{})
-		}
-		c.BannedIPs[ip] = struct{}{}
+		c.BanOrUnban[ip] = true
+	}
+}
+
+func UnbanIP(ip string) AdaptationAction {
+	return func(c *changes) {
+		c.lock.Lock()
+		defer c.lock.Unlock()
+		c.BanOrUnban[ip] = false
 	}
 }
 
 type changes struct {
-	lock      sync.Mutex
-	Limit     float64
-	Replicas  int
-	BannedIPs map[string]struct{}
+	lock       sync.Mutex
+	Limit      int
+	Replicas   int
+	BanOrUnban map[string]bool
 }

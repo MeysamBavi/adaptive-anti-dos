@@ -32,8 +32,14 @@ func RunControlLoop(config Config) {
 		ReplicaCost:        200,
 		MinLimit:           5,
 	}, k)
-	p := plan.NewModule(k)
-	e := execute.NewModule(k)
+	e := execute.NewModule(execute.Config{
+		InitialLimit:    10,
+		InitialReplicas: 2,
+	}, k)
+	p := plan.NewModule(plan.Config{
+		MergeTimeout:     3 * time.Second,
+		ExecutionTimeout: 10 * time.Second,
+	}, k, e)
 	run(m, a, p, e)
 }
 
@@ -44,8 +50,8 @@ func run(m monitor.Module, a analyze.Module, p plan.Module, e execute.Module) {
 	// start MAPE-K modules
 	reports := m.Start()
 	actions := a.Start(reports)
-	executables := p.Start(actions)
-	e.Start(executables)
+	p.Start(actions)
+	e.Start()
 
 	// wait for termination signal
 	<-ctx.Done()

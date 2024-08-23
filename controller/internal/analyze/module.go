@@ -69,7 +69,7 @@ func (i *impl) getActions(r monitor.Report) []plan.AdaptationAction {
 }
 
 func (i *impl) getBanAdaptationActions(r monitor.Report) (result []plan.AdaptationAction) {
-	for ip, _ := range r.PotentialAttackerIPs {
+	for ip := range r.PotentialAttackerIPs {
 		log.Println("banning ip", ip)
 		result = append(result, plan.BanIP(ip))
 	}
@@ -126,9 +126,9 @@ func (i *impl) adaptResources(y float64, x float64) (result []plan.AdaptationAct
 	result = append(result, plan.AdaptReplicas(int(newReplicas)))
 
 	if math.Abs(y-1) > 0.0001 {
-		newLimit := i.knowledgeBase.CurrentLimit() * y
+		newLimit := int(math.Ceil(i.knowledgeBase.CurrentLimit() * y))
 		result = append(result, plan.AdaptLimit(newLimit))
-		log.Printf("setting new replicas = %d, new limit = %f", int(newReplicas), newLimit)
+		log.Printf("setting new replicas = %d, new limit = %d", int(newReplicas), newLimit)
 	} else {
 		log.Printf("setting only new replicas = %d", int(newReplicas))
 	}
