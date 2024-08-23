@@ -35,8 +35,7 @@ func RunControlLoop(config Config) {
 		UnbanAfter:         time.Minute,
 	}, k)
 	e := execute.NewModule(execute.Config{
-		InitialLimit:    50,
-		InitialReplicas: 2,
+		InitialLimit: 50,
 	}, k)
 	p := plan.NewModule(plan.Config{
 		MergeTimeout:     3 * time.Second,

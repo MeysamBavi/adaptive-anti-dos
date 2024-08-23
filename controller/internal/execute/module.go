@@ -32,8 +32,7 @@ type impl struct {
 }
 
 type Config struct {
-	InitialLimit    int
-	InitialReplicas int
+	InitialLimit int
 }
 
 func NewModule(config Config, k knowledge.Base) Module {
@@ -46,11 +45,9 @@ func NewModule(config Config, k knowledge.Base) Module {
 		dockerClient:  dockerClient,
 		banOrUnban:    &sync.Map{},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = i.ScaleService(ctx, config.InitialReplicas)
+	err = i.refreshReplicas()
 	if err != nil {
-		panic(fmt.Errorf("failed to set initial replicas: %w", err))
+		panic(fmt.Errorf("failed to get initial replicas: %w", err))
 	}
 	i.SetRateLimit(config.InitialLimit)
 	i.knowledgeBase.SetLimit(config.InitialLimit)
@@ -75,6 +72,31 @@ const (
 	serviceName = "file-server"
 )
 
+func (i *impl) refreshReplicas() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	services, err := i.dockerClient.ServiceList(ctx, types.ServiceListOptions{
+		Filters: filters.NewArgs(filters.Arg("name", serviceName)),
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(services) == 0 {
+		return fmt.Errorf("service %s not found", serviceName)
+	}
+	spec := services[0].Spec
+	if spec.Mode.Replicated == nil || spec.Mode.Replicated.Replicas == nil {
+		return fmt.Errorf("replicated service %s not found", serviceName)
+	}
+
+	r := int(*spec.Mode.Replicated.Replicas)
+	i.knowledgeBase.SetReplicas(r)
+	log.Println("successfully refreshed replicas:", r)
+	return nil
+}
+
 func (i *impl) ScaleService(ctx context.Context, replicas int) error {
 	// Get the service details
 	services, err := i.dockerClient.ServiceList(ctx, types.ServiceListOptions{
@@ -91,6 +113,9 @@ func (i *impl) ScaleService(ctx context.Context, replicas int) error {
 	// Update the service with the new replica count
 	service := services[0]
 	serviceSpec := service.Spec
+	if serviceSpec.Mode.Replicated == nil {
+		return fmt.Errorf("replicated service %s not found", serviceName)
+	}
 	r := uint64(replicas)
 	serviceSpec.Mode.Replicated.Replicas = &r
 
