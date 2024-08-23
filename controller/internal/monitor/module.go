@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/knowledge"
+	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/utils"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -37,6 +38,7 @@ type impl struct {
 	stop          context.CancelFunc
 	wg            *sync.WaitGroup
 	metricsClient v1.API
+	log           *log.Logger
 }
 
 type Config struct {
@@ -59,6 +61,7 @@ func NewModule(cfg Config, k knowledge.Base) Module {
 		cfg:           cfg,
 		knowledgeBase: k,
 		metricsClient: v1.NewAPI(client),
+		log:           utils.GetLogger("monitor"),
 	}
 }
 
@@ -92,22 +95,22 @@ func (i *impl) monitor(ctx context.Context, reports chan<- Report) {
 		case t := <-ticker.C:
 			requests, err := i.getRequestsReport(t)
 			if err != nil {
-				log.Println("failed to get requests report:", err)
+				i.log.Println("failed to get requests report:", err)
 				continue
 			}
-			log.Printf("requests: %+v\n", requests)
+			i.log.Printf("requests: %+v\n", requests)
 			cpu, err := i.getAverageCpuUtil(t)
 			if err != nil {
-				log.Println("failed to get cpu report:", err)
+				i.log.Println("failed to get cpu report:", err)
 				continue
 			}
-			log.Printf("cpu util: %+v\n", cpu)
+			i.log.Printf("cpu util: %+v\n", cpu)
 			attackerIPs, err := i.getPotentialAttackerIPs(t)
 			if err != nil {
-				log.Println("failed to get potential attacker ip report:", err)
+				i.log.Println("failed to get potential attacker ip report:", err)
 				continue
 			}
-			log.Printf("attackers: %+v\n", attackerIPs)
+			i.log.Printf("attackers: %+v\n", attackerIPs)
 
 			reports <- Report{
 				AverageCpuUtilization: cpu,
@@ -175,7 +178,7 @@ func (i *impl) queryPrometheus(query string, now time.Time) (model.Vector, error
 		return nil, err
 	}
 	if len(warnings) > 0 {
-		log.Printf("Warnings: %v\n", warnings)
+		i.log.Printf("Warnings: %v\n", warnings)
 	}
 
 	vector, ok := result.(model.Vector)

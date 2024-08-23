@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/knowledge"
+	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/utils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
@@ -31,6 +32,7 @@ type impl struct {
 	dockerClient  *client.Client
 	limit         atomic.Int32
 	banOrUnban    *sync.Map
+	log           *log.Logger
 }
 
 type Config struct {
@@ -46,6 +48,7 @@ func NewModule(config Config, k knowledge.Base) Module {
 		knowledgeBase: k,
 		dockerClient:  dockerClient,
 		banOrUnban:    &sync.Map{},
+		log:           utils.GetLogger("execute"),
 	}
 	err = i.refreshReplicas()
 	if err != nil {
@@ -105,7 +108,7 @@ func (i *impl) refreshReplicas() error {
 
 	r := int(*s.Spec.Mode.Replicated.Replicas)
 	i.knowledgeBase.SetReplicas(r)
-	log.Println("successfully refreshed replicas:", r)
+	i.log.Println("successfully refreshed replicas:", r)
 	return nil
 }
 
@@ -129,7 +132,7 @@ func (i *impl) ScaleService(ctx context.Context, replicas int) error {
 	}
 
 	i.knowledgeBase.SetReplicas(replicas)
-	log.Printf("Service %s scaled to %d replicas", serviceName, replicas)
+	i.log.Printf("Service %s scaled to %d replicas", serviceName, replicas)
 	return nil
 }
 
@@ -199,7 +202,7 @@ func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
-		log.Println("Error encoding json, serving gateway config response", err)
+		i.log.Println("Error encoding json, serving gateway config response", err)
 		return
 	}
 	i.knowledgeBase.SetLimit(int(limit))
@@ -211,6 +214,6 @@ func (i *impl) handleGatewayRequest(w http.ResponseWriter, _ *http.Request) {
 		}
 		return true
 	})
-	log.Printf("succesfully set limit: %v", limit)
-	log.Printf("succesfully set banned IPs: %v", newBannedIPs)
+	i.log.Printf("succesfully set limit: %v", limit)
+	i.log.Printf("succesfully set banned IPs: %v", newBannedIPs)
 }

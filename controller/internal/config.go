@@ -34,8 +34,8 @@ func Default() *Config {
 	return &Config{
 		Monitor: monitor.Config{
 			MetricsAddress:           "http://localhost:9090",
-			MetricsPeriod:            15 * time.Second,
-			ReportPeriod:             6 * time.Second,
+			MetricsPeriod:            20 * time.Second,
+			ReportPeriod:             10 * time.Second,
 			CpuQuota:                 0.01,
 			AttackerPercentThreshold: 0.25,
 		},

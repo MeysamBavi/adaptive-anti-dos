@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/execute"
 	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/knowledge"
+	"github.com/MeysamBavi/adaptive-anti-dos/controller/internal/utils"
 	"log"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ type impl struct {
 	wg            *sync.WaitGroup
 	cfg           Config
 	executeModule execute.Module
+	log           *log.Logger
 }
 
 type Config struct {
@@ -32,6 +34,7 @@ func NewModule(cfg Config, k knowledge.Base, e execute.Module) Module {
 		executeModule: e,
 		cfg:           cfg,
 		knowledgeBase: k,
+		log:           utils.GetLogger("plan"),
 	}
 }
 
@@ -66,7 +69,7 @@ func (i *impl) planAndExecute(actions <-chan AdaptationAction) {
 			}
 			err := i.executeChanges(ch)
 			if err != nil {
-				log.Printf("Error executing changes: %s", err)
+				i.log.Printf("Error executing changes: %s", err)
 			}
 			mergedChanges = 0
 			ch = &changes{BanOrUnban: make(map[string]bool)}
