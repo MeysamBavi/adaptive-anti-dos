@@ -5,7 +5,7 @@ services:
       replicas: 2
       resources:
         limits:
-          cpus: "0.01"
+          cpus: "0.1"
           memory: "300M"
       labels:
         - "traefik.enable=true"
@@ -18,7 +18,7 @@ services:
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - AAD__MONITOR__METRICS_ADDRESS=http://metrics:9090
-      - AAD__MONITOR__CPU_QUOTA=0.01
+      - AAD__MONITOR__CPU_QUOTA=0.1
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "./config/controller.yaml:/etc/config.yaml"
@@ -56,3 +56,17 @@ services:
         mode: host
     depends_on:
       - controller
+
+  grafana:
+    image: grafana/grafana-enterprise:10.0.2
+    ports:
+      - target: 3000
+        published: 3000
+        mode: host
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - metrics
+
+volumes:
+  grafana_data:
