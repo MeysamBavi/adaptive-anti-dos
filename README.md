@@ -1,5 +1,5 @@
 # Adaptive Anti DoS
-A self-adaptive system for mitigating DoS attacks to servers.
+This repository belongs to a Bachelor Project at Shahid Beheshti University about designing a self-adaptive system for mitigating DoS attacks on servers.
 
 ## How to Run
 1. Install and configure [*docker swarm*](https://docs.docker.com/engine/swarm/)
