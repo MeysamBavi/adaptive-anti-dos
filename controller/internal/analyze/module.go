@@ -142,7 +142,7 @@ func (i *impl) getResourceAdaptationActions(r monitor.Report) []plan.AdaptationA
 }
 
 func (i *impl) adaptResources(y, x, limit, oldReplicas float64) (result []plan.AdaptationAction) {
-	nr := oldReplicas * x
+	nr := math.Round(oldReplicas * x)
 	if math.IsNaN(nr) || int(nr) == 0 {
 		i.log.Println("newReplicas is NaN")
 		return nil
